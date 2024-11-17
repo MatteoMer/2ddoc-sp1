@@ -233,10 +233,12 @@ impl TwoDoc {
         // Split document after the known header length
         let data_portion = doc.get(header_length..).ok_or(TwoDocError::InvalidFormat)?;
 
-        // Split data and signature at ASCII unit separator (0x1F)
         let (data, sign) = data_portion
             .split_once('\x1f')
             .ok_or(TwoDocError::InvalidFormat)?;
+
+        // Debug print the base32 signature before decoding
+        println!("Raw base32 signature: {}", sign);
 
         // Decode base32 signature (adding padding if needed)
         let mut padded_sign = sign.to_string();
@@ -244,12 +246,18 @@ impl TwoDoc {
             padded_sign.push('=');
         }
 
+        // Debug print the padded signature
+        println!("Padded signature: {}", padded_sign);
+
         let signature = base32::decode(base32::Alphabet::Rfc4648 { padding: true }, &padded_sign)
             .ok_or(TwoDocError::Base32DecodeError)?;
 
-        // Parse C40 message
-        //let message = C40Message::from_code(header.perimeter_id, data)
-        //   .map_err(|_| TwoDocError::MessageParseError)?;
+        // Verify we now have 64 bytes
+        if signature.len() != 64 {
+            return Err(TwoDocError::InvalidFormat);
+        } // Parse C40 message
+          //let message = C40Message::from_code(header.perimeter_id, data)
+          //   .map_err(|_| TwoDocError::MessageParseError)?;
 
         // Construct signed data
         let signed_data = format!("{}{}", &doc[..header_length], data).into_bytes();
@@ -317,24 +325,17 @@ impl TwoDoc {
             Err(_) => return false,
         };
 
-        println!("[verif-sign] point encoded");
-
         // Create a verifying key from the encoded point
         let verifying_key = match VerifyingKey::from_encoded_point(&encoded_point) {
             Ok(key) => key,
             Err(_) => return false,
         };
 
-        println!("[verif-sign] vkey processed");
-
-        println!("[verif-sign {:?}]", public_key);
         // Parse the signature from bytes
-        let signature = match Signature::from_der(signature) {
+        let signature = match Signature::from_bytes(signature.into()) {
             Ok(sig) => sig,
             Err(_) => return false,
         };
-
-        println!("[verif-sign] signature processed");
 
         // Verify the signature
         verifying_key.verify(signed_data, &signature).is_ok()

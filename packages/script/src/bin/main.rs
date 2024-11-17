@@ -52,8 +52,6 @@ fn main() {
     stdin.write(&data.signature);
     stdin.write(&public_key);
 
-    let _ = TwoDoc::verify_signature(&data.signed_data, &data.signature, &public_key);
-
     if args.execute {
         // Execute the program
         let (mut output, report) = client.execute(EXEC_ELF, stdin).run().unwrap();
